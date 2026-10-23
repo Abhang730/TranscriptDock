@@ -1,0 +1,15 @@
+{
+  "name": "transcriptdock",
+  "version": "0.3.0",
+  "private": true,
+  "description": "TranscriptDock — turn video captions into clean, searchable transcripts. The authoritative frontend manifest lives in web/package.json and the backend in api/requirements.txt.",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix web run start",
+    "lint": "npm --prefix web run lint",
+    "typecheck": "npm --prefix web run typecheck",
+    "api": "python -m uvicorn app.main:app --reload --port 8000 --app-dir api",
+    "test:api": "python -m pytest api/tests"
+  }
+}
