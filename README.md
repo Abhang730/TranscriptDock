@@ -22,8 +22,8 @@ Last verified in this workspace:
 | --- | --- | --- |
 | Lint | `cd web && npm run lint` | pass (0 warnings/errors) |
 | Types | `cd web && npm run typecheck` | pass |
-| Production build | `cd web && npm run build` | pass (21 routes, Next.js 15.5.28) |
-| Backend tests | `api/.venv/Scripts/python -m pytest api/tests` | 91 passed in 3.07s |
+| Production build | `cd web && npm run build` | pass (35 routes, Next.js 15.5.28) |
+| Backend tests | `api/.venv/Scripts/python -m pytest api/tests` | 94 passed in 3.63s |
 | Live HTTP smoke | `uvicorn` + `next start`, `curl` | all 16 public routes 200; demo single job and TXT/SRT/VTT/CSV/ZIP exports 200; protected routes gated; backend-down returns 503 |
 | Dependency audit | `cd web && npm audit` | 11 (3 moderate, 8 high), **0 critical** after upgrading Next 15.2.4 → 15.5.28 |
 
@@ -125,6 +125,15 @@ the API. The single-video demo flow works with no Supabase and no Razorpay keys.
 All variables are documented in `.env.example`. Backend reads `api/.env` or the
 repository root `.env`; frontend reads `web/.env.local`. Never commit secrets.
 
+**Persistence safety guard.** `STORE_BACKEND=memory` is a demo store: accounts,
+jobs, transcripts and credits disappear on restart. It is accepted only when
+`APP_ENV` is not `production`. With `APP_ENV=production` the API logs
+`Refusing to start …` and aborts rather than silently running on ephemeral
+storage; set `STORE_BACKEND=supabase` plus `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` before deploying. Unknown `STORE_BACKEND` values
+also fail at startup instead of falling back to memory. This guard does not
+affect local demo runs, which keep using memory by default.
+
 ---
 
 ## 4. Supabase setup (required for accounts, history, playlists)
@@ -199,8 +208,10 @@ RAZORPAY_WEBHOOK_SECRET=xxxxxxxxxxxxxxxx
   `payment.captured`, `payment.failed`, `order.paid`.
 - Test locally with a tunnel (for example `cloudflared tunnel --url http://localhost:3000`).
 
-The credit quantity (`PACK_CREDITS`) and batch limits remain provisional and
-configurable; only the ₹49 price has been confirmed.
+Only the ₹49 price (`PACK_PRICE_PAISE=4900`) is fixed. `FREE_CREDITS`,
+`PACK_CREDITS`, `FREE_BATCH_SIZE`, `PAID_BATCH_SIZE`, `MAX_BATCH_SIZE`,
+`RETENTION_DAYS` and `JOB_RETENTION_DAYS` are provisional defaults, not agreed
+product terms — finalize them before launch.
 
 ---
 
@@ -252,7 +263,8 @@ Known hardening follow-ups:
   Moving to a nonce-based policy requires per-request nonces in middleware.
 - Rate limiting is per API instance; add edge rate limits for multi-instance
   deployments.
-- The in-memory store loses data on restart and is for local/demo use only.
+- The in-memory store loses data on restart and is for local/demo use only;
+  production startup refuses it (see §3.3).
 
 ---
 
@@ -275,5 +287,36 @@ YouTube, Google, Supabase or Razorpay is claimed.
 ## 9. Deployment
 
 See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the recommended free-first
-stack (Vercel + Google Cloud Run + Supabase), Docker usage, environment matrix,
-rollback and cost controls.
+stack (Vercel + Google Cloud Run + Supabase), the full environment matrix,
+verification requests, rollback and cost controls. The essential commands:
+
+```bash
+# Backend image + service (requires gcloud auth and a project id)
+cd api
+gcloud builds submit --tag gcr.io/<PROJECT_ID>/transcriptdock-api
+gcloud run deploy transcriptdock-api --image gcr.io/<PROJECT_ID>/transcriptdock-api \
+  --region asia-south1 --port 8080 --allow-unauthenticated \
+  --set-env-vars APP_ENV=production,PROVIDER_NAME=demo,STORE_BACKEND=supabase,TRUST_PROXY_HEADERS=true \
+  --set-secrets SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-key:latest,SUPABASE_JWT_SECRET=supabase-jwt-secret:latest,RAZORPAY_KEY_ID=razorpay-key-id:latest,RAZORPAY_KEY_SECRET=razorpay-key-secret:latest,RAZORPAY_WEBHOOK_SECRET=razorpay-webhook-secret:latest
+
+# Frontend: import the repo on Vercel, set Root Directory to `web`,
+# then set the variables from docs/DEPLOYMENT.md §3 and deploy.
+```
+
+`APP_ENV=production` requires `STORE_BACKEND=supabase`; the API refuses to start
+on ephemeral storage (see §3.3).
+
+## 10. Repository state
+
+This folder is a Git repository on branch `main` with an initial commit holding
+the frontend, backend, tests, schema, env templates and docs. No remote is
+configured, so the commit is local only — add a private remote and push before
+the machine is reset:
+
+```bash
+git remote add origin <private-repo-url>
+git push -u origin main
+```
+
+`node_modules/`, `.next/`, `.venv/`, caches, logs and `.env*` files (other than
+`.env.example`) are ignored and were never committed.

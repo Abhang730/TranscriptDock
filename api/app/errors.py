@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 
+class ConfigurationError(RuntimeError):
+    """Raised at startup when configuration is missing or unsafe for the environment.
+
+    This is deliberately not an AppError: it is never returned to a client. It
+    aborts startup so a misconfigured deployment fails loudly instead of running.
+    """
+
+
 class AppError(Exception):
     status_code = 400
     code = "request_failed"

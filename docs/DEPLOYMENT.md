@@ -50,6 +50,9 @@ Notes:
 
 - `--allow-unauthenticated` is required for the BFF to call the API; the API
   enforces auth itself on protected routes.
+- `APP_ENV=production` **requires** `STORE_BACKEND=supabase`. Startup aborts with
+  `Refusing to start with STORE_BACKEND=memory while APP_ENV=production` if the
+  store is ephemeral, so a bad deploy fails visibly instead of losing data.
 - `TRUST_PROXY_HEADERS=true` is only safe because the service is reachable
   through Google's proxy. Do not enable it for a directly exposed server.
 - With in-memory rate limiting, more than one instance weakens per-IP limits. If
@@ -153,7 +156,9 @@ A `503` from `/api/jobs` means `API_ORIGIN` is wrong or the API is cold/unhealth
   new implementation of `TranscriptProvider`.
 - Supabase/Google/Razorpay flows are code-complete but unverified without
   credentials.
-- In-memory store is unsuitable for production (data loss on restart).
+- In-memory store is unsuitable for production (data loss on restart) and the
+  API refuses to start with it when `APP_ENV=production`; a Supabase project is
+  therefore mandatory for any production deploy.
 - No background queue: playlist processing runs in the API process. A restart
   mid-batch leaves items `pending`; the retry endpoint can resume them.
 - Placeholder legal operator/contact details must be replaced.

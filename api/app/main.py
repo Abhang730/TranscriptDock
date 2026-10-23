@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from .config import Settings, get_settings
 from .database import build_store
-from .errors import AppError
+from .errors import AppError, ConfigurationError
 from .routes import api_router
 from .services.credit_service import CreditService
 from .services.job_service import JobService, wait_for_jobs
@@ -40,8 +40,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         active = getattr(app.state, "settings_override", None) or get_settings()
 
-        store = build_store(active)
-        provider = build_provider(active)
+        try:
+            store = build_store(active)
+            provider = build_provider(active)
+        except ConfigurationError as exc:
+            logger.critical("Refusing to start: %s", exc)
+            raise
         credits = CreditService(store, active)
         limiter = SlidingWindowLimiter()
 
